@@ -1,5 +1,7 @@
 import pandas as pd
+import numpy as np
 import scipy.stats
+from scipy.stats import norm
 
 def drawdown(return_series: pd.Series):
     '''
@@ -102,3 +104,84 @@ def is_normal(r, level=0.01):
     statistic, p_value = scipy.stats.jarque_bera(r)
 
     return p_value > level
+
+def semi_deviation(r):
+    '''
+    Returns the semideviation (negative semideviation of r).
+    r must be a series or a Dataframe.
+    '''
+
+    excess= r - r.mean()  # We demean the returns
+
+    excess_negative = excess[excess < 0]  # We take only the returns below the mean
+
+    excess_negative_square = excess_negative**2  # We square the demeaned returns below the mean
+
+    n_negative = (excess < 0).sum()  # number of returns under the mean
+
+    return (excess_negative_square.sum() / n_negative)**0.5  # semideviation
+
+def historic_var(r, level=5):
+    '''
+    Returns the historic VaR at a specified level
+    i.e. returns the number such that "level" percent of the returns
+    fall below that number, and the (100-level) percent are above
+    :param r:
+    :param level:
+    :return:
+    '''
+
+    if isinstance(r, pd.DataFrame):
+
+        return r.aggregate(historic_var, level=level)
+
+    elif isinstance(r, pd.Series):
+
+        return -np.percentile(r, level)
+
+    else:
+        raise TypeError('Expected r to be a Series or DataFrame')
+
+def historic_cvar(r, level=5):
+    '''
+    Calculates the Conditional VaR of Series or DataFrame
+    :param r:
+    :param level:
+    :return:
+    '''
+
+    if isinstance(r, pd.Series):
+
+        is_beyond = r <= -historic_var(r, level=level)
+
+        return -r[is_beyond].mean()
+
+    elif isinstance(r, pd.DataFrame):
+
+        return r.aggregate(historic_cvar, level=level)
+
+    else:
+
+        raise TypeError("Expected r to be a Series or DataFrame")
+
+def gaussian_var(r, level=5, modified=False):
+    '''
+    Calculates the parametric (Gaussian) VaR of a Series or df.
+    If modified is True, then the modified VaR is return using the Cornish-Fisher estimation
+    :param r:
+    :param level:
+    :param modified:
+    :return:
+    '''
+
+    # Calculate the Z score, assuming it's gaussian
+
+    z = norm.ppf(level/100)
+
+    if modified:
+
+        s = skewness(r)
+        k = kurtosis(r)
+        z = (z + (z**2 - 1) * s/6 + (z**3 -3 * z) * (k - 3)/24 - (2*z**3 - 5*z) * (s**2)/36)
+
+    return -(r.mean() + z * r.std(ddof=0))
