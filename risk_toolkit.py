@@ -18,7 +18,7 @@ def drawdown(return_series: pd.Series):
 
     return pd.DataFrame({
         'Wealth': wealth_index,
-        'Previous peal': previous_peaks,
+        'Previous peak': previous_peaks,
         'Drawdown': drawdowns
     })
 
@@ -111,7 +111,7 @@ def semi_deviation(r):
     r must be a series or a Dataframe.
     '''
 
-    excess= r - r.mean()  # We demean the returns
+    excess = r - r.mean()  # We demean the returns
 
     excess_negative = excess[excess < 0]  # We take only the returns below the mean
 
