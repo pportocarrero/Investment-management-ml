@@ -56,6 +56,71 @@ def get_hf_returns():
 
     return hfi
 
+
+def get_ind_returns():
+
+    '''
+    Load and format the Ken French 30 Industry portfolios value weighted monthly returns
+    '''
+
+    ind = pd.read_csv('data/ind30_m_vw_rets.csv', header=0, index_col=0, parse_dates=True) / 100
+
+    ind.index = pd.to_datetime(ind.index, format='%Y%m').to_period('M')
+
+    ind.columns = ind.columns.str.strip()
+
+    return ind
+
+
+def annualized_returns(r, periods_per_year):
+
+    '''
+    Annualizes returns
+    :param r:
+    :param periods_per_year:
+    :return:
+    '''
+
+    compounded_growth = (1 + r).prod()
+
+    n_periods = r.shape[0]
+
+    return compounded_growth ** (periods_per_year / n_periods) - 1
+
+
+def annualized_volatility(r, periods_per_year):
+
+    '''
+    Annaualizes the volatility
+    :param r:
+    :param periods_per_year:
+    :return:
+    '''
+
+    return r.std() * (periods_per_year ** 0.5)
+
+
+def sharpe_ratio(r, risk_free_rate, periods_per_year):
+
+    '''
+    Estimates the annualized sharpe ratio of a set of returns
+    :param r: returns
+    :param risk_free_rate: risk free rate to use
+    :param periods_per_year: number of periods per year
+    :return: sharpe ratio
+    '''
+
+    rf_per_period = (1 + risk_free_rate) ** (1 / periods_per_year) - 1
+
+    excess_return = r - rf_per_period
+
+    annual_excess_return = annualized_returns(excess_return, periods_per_year)
+
+    annual_volatility = annualized_volatility(r, periods_per_year)
+
+    return annual_excess_return / annual_volatility
+
+
 def skewness(r):
     '''
     Alternative to scipy.stats.skew()
@@ -75,6 +140,7 @@ def skewness(r):
 
     return exp / sigma_r ** 3
 
+
 def kurtosis(r):
     '''
 
@@ -92,6 +158,7 @@ def kurtosis(r):
 
     return exp / sigma_r ** 4
 
+
 def is_normal(r, level=0.01):
     '''
     Applies the Jarque-Bera test to determine if a Series is normal or not.
@@ -104,6 +171,7 @@ def is_normal(r, level=0.01):
     statistic, p_value = scipy.stats.jarque_bera(r)
 
     return p_value > level
+
 
 def semi_deviation(r):
     '''
@@ -120,6 +188,7 @@ def semi_deviation(r):
     n_negative = (excess < 0).sum()  # number of returns under the mean
 
     return (excess_negative_square.sum() / n_negative)**0.5  # semideviation
+
 
 def historic_var(r, level=5):
     '''
@@ -141,6 +210,7 @@ def historic_var(r, level=5):
 
     else:
         raise TypeError('Expected r to be a Series or DataFrame')
+
 
 def historic_cvar(r, level=5):
     '''
@@ -164,6 +234,7 @@ def historic_cvar(r, level=5):
 
         raise TypeError("Expected r to be a Series or DataFrame")
 
+
 def gaussian_var(r, level=5, modified=False):
     '''
     Calculates the parametric (Gaussian) VaR of a Series or df.
@@ -176,7 +247,7 @@ def gaussian_var(r, level=5, modified=False):
 
     # Calculate the Z score, assuming it's gaussian
 
-    z = norm.ppf(level/100)
+    z = norm.ppf(level / 100)
 
     if modified:
 
