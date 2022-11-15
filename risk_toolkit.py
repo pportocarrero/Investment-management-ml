@@ -256,3 +256,41 @@ def gaussian_var(r, level=5, modified=False):
         z = (z + (z**2 - 1) * s/6 + (z**3 -3 * z) * (k - 3)/24 - (2*z**3 - 5*z) * (s**2)/36)
 
     return -(r.mean() + z * r.std(ddof=0))
+
+
+def portfolio_return(weights, returns):
+
+    return weights.T @ returns
+
+
+def portfolio_vol(weights, cov_matrix):
+
+    return (weights.T @ cov_matrix @ weights) ** 0.5
+
+
+def efficient_frontier_2_asset(n_points, expected_return, cov_matrix, style='.-'):
+
+    '''
+    Plots a 2 asset efficient frontier
+    :param n_points:
+    :param expected_return:
+    :param covariance_matrix:
+    :return:
+    '''
+
+    if expected_return.shape[0] != 2 or expected_return.shape[0] != 2:
+
+        raise ValueError('This function can only plot a 2 asset frontier')
+
+    weights = [np.array([w, 1-w]) for w in np.linspace(0, 1, n_points)]
+
+    rets = [portfolio_return(w, expected_return) for w in weights]
+
+    vol = [portfolio_vol(w, cov_matrix) for w in weights]
+
+    efficient_frontier_df = pd.DataFrame({
+        'Returns': rets,
+        'Volatility': vol
+    })
+
+    return efficient_frontier_df.plot.line(x='Volatility', y='Returns', style=style)
