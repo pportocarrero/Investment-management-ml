@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import scipy.stats
 from scipy.stats import norm
+from scipy.optimize import minimize
 
 def drawdown(return_series: pd.Series):
     '''
@@ -283,6 +284,76 @@ def efficient_frontier_2_asset(n_points, expected_return, cov_matrix, style='.-'
         raise ValueError('This function can only plot a 2 asset frontier')
 
     weights = [np.array([w, 1-w]) for w in np.linspace(0, 1, n_points)]
+
+    rets = [portfolio_return(w, expected_return) for w in weights]
+
+    vol = [portfolio_vol(w, cov_matrix) for w in weights]
+
+    efficient_frontier_df = pd.DataFrame({
+        'Returns': rets,
+        'Volatility': vol
+    })
+
+    return efficient_frontier_df.plot.line(x='Volatility', y='Returns', style=style)
+
+
+def minimize_vol(target_return, expected_return, cov_matrix):
+
+    n = expected_return.shape[0]
+
+    init_guess = np.repeat(1/n, n)  # This is the initial guess for the optimizer. It computes the same weights for all possibilities.
+
+    bounds = ((0.0, 1.0),) * n  # This gives boundaries for the optimizer. Only going long on assets (between 0 to 100%) for every n possibility.
+
+    weights_sum_to_one = {
+        'type': 'eq',
+        'fun': lambda weights: np.sum(weights) - 1
+    }
+
+    return_is_target = {
+        'type': 'eq',
+        'args': (expected_return,),
+        'fun': lambda weights, expected_return: target_return - portfolio_return(weights, expected_return)  # Lambda function is an anonymous function
+    }
+
+    weights = minimize(portfolio_vol, init_guess,
+                       args=(cov_matrix,),
+                       method='SLSQP',
+                       options={'disp': False},
+                       constraints=(weights_sum_to_one, return_is_target),
+                       bounds=bounds
+    )
+
+    return weights.x
+
+
+def optimal_weights(n_points, expected_return, cov_matrix):
+
+    '''
+    This is the list of weights to run the optimizer to minimize the vol.
+    :param n_points:
+    :param expected_return:
+    :param cov_matrix:
+    :return:
+    '''
+
+    target_returns = np.linspace(expected_return.min(), expected_return.max(), n_points)
+
+    weights = [minimize_vol(target_return, expected_return, cov_matrix) for target_return in target_returns]
+
+    return weights
+
+def efficient_frontier_multi_asset(n_points, expected_return, cov_matrix, style='.-'):
+
+    '''
+    Plots the n-asset efficient frontier
+    :param n_points:
+    :param expected_return:
+    :param covariance_matrix:
+    :return:
+    '''
+
+    weights = optimal_weights(n_points, expected_return, cov_matrix)
 
     rets = [portfolio_return(w, expected_return) for w in weights]
 
