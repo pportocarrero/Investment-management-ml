@@ -77,8 +77,8 @@ def annualized_returns(r, periods_per_year):
 
     '''
     Annualizes returns
-    :param r:
-    :param periods_per_year:
+    :param r: database
+    :param periods_per_year: number of periods in a year to estimate the annualized returns
     :return:
     '''
 
@@ -327,6 +327,55 @@ def minimize_vol(target_return, expected_return, cov_matrix):
     return weights.x
 
 
+def max_sharpe_ratio(risk_free_rate, expected_return, cov_matrix):
+
+    '''
+    Returns the weights of the portfolio that gives the maximum sharpe ratio given the risk-free rate and expected returns and a covariance matrix.
+    :param risk_free_rate:
+    :param expected_return:
+    :param cov_matrix:
+    :return:
+    '''
+
+    n = expected_return.shape[0]
+
+    init_guess = np.repeat(1/n, n)
+
+    bounds = ((0.0, 1.0),) * n
+
+    weights_sum_to_one = {
+        'type': 'eq',
+        'fun': lambda weights: np.sum(weights) - 1
+    }
+
+
+    def neg_sharpe_ratio(weights, risk_free_rate, expected_return, cov_matrix):
+
+        '''
+        Returns the negative of the sharpe ratio, given weights
+        :param weights:
+        :param risk_free_rate:
+        :param expected_return:
+        :param cov_matrix:
+        :return:
+        '''
+
+        r = portfolio_return(weights, expected_return)
+
+        vol = portfolio_vol(weights, cov_matrix)
+
+        return -(r - risk_free_rate) / vol
+
+    weights = minimize(neg_sharpe_ratio, init_guess,
+                       args=(risk_free_rate, expected_return, cov_matrix),
+                       method='SLSQP',
+                       options={'disp': False},
+                       constraints=(weights_sum_to_one,),
+                       bounds=bounds
+                       )
+
+    return weights.x
+
 def optimal_weights(n_points, expected_return, cov_matrix):
 
     '''
@@ -343,16 +392,19 @@ def optimal_weights(n_points, expected_return, cov_matrix):
 
     return weights
 
-def efficient_frontier_multi_asset(n_points, expected_return, cov_matrix, style='.-'):
+
+def efficient_frontier_multi_asset(n_points, expected_return, cov_matrix, show_cml=False, risk_free_rate=0, style='.-'):
 
     '''
-    Plots the n-asset efficient frontier
+    Plots the multi-asset efficient frontier including the Capital Market Line.
     :param n_points:
     :param expected_return:
-    :param covariance_matrix:
+    :param cov_matrix:
+    :param show_cml:
+    :param risk_free_rate:
+    :param style:
     :return:
     '''
-
     weights = optimal_weights(n_points, expected_return, cov_matrix)
 
     rets = [portfolio_return(w, expected_return) for w in weights]
@@ -364,4 +416,25 @@ def efficient_frontier_multi_asset(n_points, expected_return, cov_matrix, style=
         'Volatility': vol
     })
 
-    return efficient_frontier_df.plot.line(x='Volatility', y='Returns', style=style)
+    ax = efficient_frontier_df.plot.line(x='Volatility', y='Returns', style=style)
+
+    if show_cml:
+
+        ax.set_xlim(left=0)
+
+        weights_msr = max_sharpe_ratio(risk_free_rate, expected_return, cov_matrix)
+
+        ret_msr = portfolio_return(weights_msr, expected_return)
+
+        vol_msr = portfolio_vol(weights_msr, cov_matrix)
+
+        # Add the Capital Market Line
+
+        cml_x = [0, vol_msr]  # Both ends of the line in axis X
+
+        cml_y = [risk_free_rate, ret_msr]
+
+        ax.plot(cml_x, cml_y, color='red', marker='o', linestyle='dashed', markersize=12, linewidth=2)
+
+    return ax
+
