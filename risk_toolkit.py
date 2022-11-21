@@ -393,10 +393,24 @@ def optimal_weights(n_points, expected_return, cov_matrix):
     return weights
 
 
-def efficient_frontier_multi_asset(n_points, expected_return, cov_matrix, show_cml=False, risk_free_rate=0, style='.-'):
+def gmv(cov_matrix):
+
+    '''
+    Return the weight of the Global Minimum Volatility Portfolio given the covariance matrix
+    :param cov_matrix:
+    :return:
+    '''
+
+    n = cov_matrix.shape[0]
+
+    return max_sharpe_ratio(0, np.repeat(1, n), cov_matrix)
+
+def efficient_frontier_multi_asset(n_points, expected_return, cov_matrix, show_cml=False, risk_free_rate=0, show_ew=False, show_gmv=False, style='.-'):
 
     '''
     Plots the multi-asset efficient frontier including the Capital Market Line.
+    :param show_gmv:
+    :param show_ew:
     :param n_points:
     :param expected_return:
     :param cov_matrix:
@@ -417,6 +431,28 @@ def efficient_frontier_multi_asset(n_points, expected_return, cov_matrix, show_c
     })
 
     ax = efficient_frontier_df.plot.line(x='Volatility', y='Returns', style=style)
+
+    if show_ew:
+
+        n = expected_return.shape[0]
+
+        w_ew = np.repeat(1/n, n)
+
+        r_ew = portfolio_return(w_ew, expected_return)
+
+        vol_ew = portfolio_vol(w_ew, cov_matrix)
+
+        ax.plot([vol_ew], [r_ew], color='green', marker='o', markersize=12)
+
+    if show_gmv:
+
+        w_gmv = gmv(cov_matrix)
+
+        r_gmv = portfolio_return(w_gmv, expected_return)
+
+        vol_gmv = portfolio_vol(w_gmv, cov_matrix)
+
+        ax.plot([vol_gmv], [r_gmv], color='blue', marker='o', markersize=10)
 
     if show_cml:
 
