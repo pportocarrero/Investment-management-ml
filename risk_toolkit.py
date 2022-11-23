@@ -24,6 +24,11 @@ def drawdown(return_series: pd.Series):
     })
 
 
+def compound(r):
+
+    return np.expm1(np.log1p(r).sum())
+
+
 def get_ffme_returns():
     '''
     Loads the Fama-French database for the returns of the large and small cap portfolios
@@ -99,6 +104,31 @@ def get_ind_nfirms():
     ind.columns = ind.columns.str.strip()
 
     return ind
+
+
+def get_total_market_index_returns():
+
+    '''
+    Load the 30 industry portfolio data and derive the returns of a cap-weighted total market index
+    :return:
+    '''
+
+    ind_nfirms = get_ind_nfirms()
+
+    ind_size = get_ind_size()
+
+    ind_return = get_ind_returns()
+
+    ind_mkt_cap = ind_nfirms * ind_size
+
+    total_mkt_cap = ind_mkt_cap.sum(axis=1)
+
+    ind_cap_weight = ind_mkt_cap.divide(total_mkt_cap, axis='rows')
+
+    total_market_return = (ind_cap_weight * ind_return).sum(axis='columns')
+
+    return total_market_return
+
 def annualized_returns(r, periods_per_year):
 
     '''
@@ -500,3 +530,128 @@ def efficient_frontier_multi_asset(n_points, expected_return, cov_matrix, show_c
 
     return ax
 
+
+def run_cppi(risky_r, safe_r=None, m=3, start=1000, floor=0.8, risk_free_rate=0.03, drawdown=None):
+
+    '''
+    Run a backtest of the CPPI strategy, given a set of returns for the risky asset.
+    Returns a dictionary with Asset Value History, Risk Budget History, Risky Weight History
+    :param risk_r:
+    :param safe_r:
+    :param m:
+    :param start:
+    :param floor:
+    :param risk_free_rate:
+    :return:
+    '''
+
+    # Set up the CPPI parameters
+
+    dates = risky_r.index
+
+    n_steps = len(dates)
+
+    account_value = start
+
+    floor_value = start * floor
+
+    peak = account_value
+
+    if isinstance(risky_r, pd.Series):
+
+        risky_r = pd.DataFrame(risky_r, columns=['R'])
+
+    if safe_r is None:
+
+        safe_r = pd.DataFrame().reindex_like(risky_r)
+
+        safe_r.values[:] = risk_free_rate / 12
+
+    # Set up dataframes for saving intermediate values
+
+    account_history = pd.DataFrame().reindex_like(risky_r)
+
+    cushion_history = pd.DataFrame().reindex_like(risky_r)
+
+    risky_w_history = pd.DataFrame().reindex_like(risky_r)
+
+    for step in range(n_steps):
+
+        if drawdown is not None:
+
+            peak = np.maximum(peak, account_value)
+
+            floor_value = peak * (1 - drawdown)
+
+        cushion = (account_value - floor_value) / account_value  # Risk budget
+
+        risky_w = m * cushion
+
+        risky_w = np.minimum(risky_w, 1)  # To limit the weight to 100% and no leverage
+
+        risky_w = np.maximum(risky_w, 0)
+
+        safe_w = 1 - risky_w
+
+        risky_alloc = account_value * risky_w
+
+        safe_alloc = account_value * safe_w
+
+        # Update the account value for this time sstep
+
+        account_value = risky_alloc * (1 + risky_r.iloc[step]) + safe_alloc * (1 + safe_r.iloc[step])
+
+        # Save the values to look at the history and plot it
+
+        cushion_history.iloc[step] = cushion
+
+        risky_w_history.iloc[step] = risky_w
+
+        account_history.iloc[step] = account_value
+
+    risky_wealth = start * (1 + risky_r).cumprod()
+
+    backtest_result = {
+        'Wealth': account_history,
+        'Risky Wealth': risky_wealth,
+        'Risk Budget': cushion_history,
+        'Risky Allocation': risky_w_history,
+        'm': m,
+        'start': start,
+        'floor': floor,
+        'risky_r': risky_r,
+        'safe_r': safe_r
+    }
+
+    return backtest_result
+
+def summary_stats(r, risk_free_rate=0.03):
+
+    '''
+    Returns a DataFrame that contains aggregated summary stats for the returns in the columns of r
+    :param r:
+    :param risk_free_rate:
+    :return:
+    '''
+
+    ann_r = r.aggregate(annualized_returns, periods_per_year=12)
+    ann_vol = r.aggregate(annualized_volatility, periods_per_year=12)
+    ann_sharpe_ratio = r.aggregate(sharpe_ratio, risk_free_rate=risk_free_rate, periods_per_year=12)
+    draw_down = r.aggregate(lambda r: drawdown(r).Drawdown.min())
+    skew = r.aggregate(skewness)
+    kurt = r.aggregate(kurtosis)
+    cf_var5 = r.aggregate(gaussian_var, modified=True)
+    hist_cvar5 = r.aggregate(historic_cvar)
+
+    df = pd.DataFrame({
+        'Annualized Return': ann_r,
+        'Annualized Volatility': ann_vol,
+        'Skewness': skew,
+        'Kurtosis': kurt,
+        'Cornish-Fisher VaR (5%)': cf_var5,
+        'Historic CVaR (5%)': hist_cvar5,
+        'Sharpe Ratio': ann_sharpe_ratio,
+        'Max Drawdown': draw_down
+    })
+
+    return df
