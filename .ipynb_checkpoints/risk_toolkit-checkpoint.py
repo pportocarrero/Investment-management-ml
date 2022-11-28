@@ -705,13 +705,13 @@ def show_gbm(n_scenarios, mu, sigma, s_0=100, y_lim=100):
     
     ax.plot(0, s_0, marker='o', color='darkred', alpha=0.2)
     
-def show_cppi(n_scenarios=50, mu=0.07, sigma=0.15, m=3, floor=0, risk_free_rate=0.03, steps_per_year=12, y_max=100):
+def show_cppi(n_scenarios=50, mu=0.07, sigma=0.15, m=3, floor=0, risk_free_rate=0.03, steps_per_year=12, y_max=100, s_0=100.0):
     
     '''
     Plot the results of a Monte Carlo Simulation of CPPI
     '''
     
-    start = 100
+    start = s_0
     
     sim_returns = gbm(n_scenarios=n_scenarios, mu=mu, sigma=sigma, prices=False, steps_per_year=steps_per_year)
     
