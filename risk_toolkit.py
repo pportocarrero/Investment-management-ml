@@ -3,6 +3,7 @@ import numpy as np
 import scipy.stats
 from scipy.stats import norm
 from scipy.optimize import minimize
+import matplotlib.pyplot as plt
 
 def drawdown(return_series: pd.Series):
     '''
@@ -657,29 +658,117 @@ def summary_stats(r, risk_free_rate=0.03):
     return df
 
 
-def gbm(n_years=10, n_scenarios=1000, mu=0.07, sigma=0.15, steps_per_year=12, s_0=100.0):
+def gbm(n_years=10, n_scenarios=1000, mu=0.07, sigma=0.15, steps_per_year=12, s_0=100.0, prices=True):
 
     '''
     Evolution of a stock price using a Geometric Brownian Motion Model
-    :param n_years:
-    :param n_scenarios:
-    :param mu:
-    :param sigma:
-    :param steps_per_year:
-    :param s_0:
+    :param n_years: number of years to simulate
+    :param n_scenarios: number of scenarios to simulate
+    :param mu: mean
+    :param sigma: volatilty measure
+    :param steps_per_year: number of steps to simulate per year
+    :param s_0: initial price
     :return:
     '''
 
     dt = 1/steps_per_year
 
-    n_steps = int(n_years * steps_per_year)
+    n_steps = int(n_years * steps_per_year) + 1
 
-    rets_plus_1 = np.random.normal(loc=(1 + mu * dt), scale=(sigma * np.sqrt(dt)), size=(n_steps, n_scenarios))
+    rets_plus_1 = np.random.normal(loc=(1 + mu) ** dt, scale=(sigma * np.sqrt(dt)), size=(n_steps, n_scenarios))
 
     rets_plus_1[0] = 1
 
     # Convert returns to prices
 
-    prices = s_0 * pd.DataFrame(rets_plus_1).cumprod()
+    prices = s_0 * pd.DataFrame(rets_plus_1).cumprod() if prices else rets_plus_1 - 1
 
     return prices
+
+def show_gbm(n_scenarios, mu, sigma, s_0=100, y_lim=100):
+    
+    '''
+    Draw the results of a stock price evolution under a Geometric Brownian Motion Model
+    '''
+       
+    prices = gbm(n_scenarios=n_scenarios, mu=mu, sigma=sigma, s_0=s_0)
+    
+    ax = prices.plot(legend=False, color='indianred', alpha=0.5, linewidth=2, figsize=(12,6))
+    
+    ax.axhline(y=s_0, ls=':', color='black')
+    
+    y_lim = prices.values.max() * y_lim / 100
+    
+    ax.set_ylim(top=y_lim)
+    
+    # Draw a dot at the origin
+    
+    ax.plot(0, s_0, marker='o', color='darkred', alpha=0.2)
+    
+def show_cppi(n_scenarios=50, mu=0.07, sigma=0.15, m=3, floor=0, risk_free_rate=0.03, steps_per_year=12, y_max=100):
+    
+    '''
+    Plot the results of a Monte Carlo Simulation of CPPI
+    '''
+    
+    start = 100
+    
+    sim_returns = gbm(n_scenarios=n_scenarios, mu=mu, sigma=sigma, prices=False, steps_per_year=steps_per_year)
+    
+    risky_r = pd.DataFrame(sim_returns)
+    
+    # Run the "back"-test
+    
+    btr = run_cppi(risky_r=pd.DataFrame(risky_r), risk_free_rate=risk_free_rate, m=m, start=start, floor=floor)
+    
+    wealth = btr['Wealth']
+    
+    # Calculate terminal wealth stats
+    
+    y_max = wealth.values.max() * y_max / 100
+    
+    terminal_wealth = wealth.iloc[-1]
+    
+    tw_mean = terminal_wealth.mean()
+    
+    tw_median = terminal_wealth.median()
+    
+    failure_mask = np.less(terminal_wealth, start * floor)  # It shows if terminal_wealth is less than the determineed floor and returns a boolean (true or false).
+    
+    n_failures = failure_mask.sum()
+    
+    p_fail = n_failures / n_scenarios
+    
+    e_shortfall = np.dot(terminal_wealth - start * floor, failure_mask) / n_failures if n_failures > 0 else 0.0
+    
+    # Plot it
+    
+    fig, (wealth_ax, hist_ax) = plt.subplots(nrows=1, ncols=2, sharey=True, gridspec_kw={'width_ratios':[3,2]}, figsize=(24,9))
+    
+    plt.subplots_adjust(wspace=0.0)
+    
+    wealth.plot(ax=wealth_ax, legend=False, alpha=0.3, color='indianred')
+    
+    wealth_ax.axhline(y=start, ls=':', color='black')
+    
+    wealth_ax.axhline(y=start * floor, ls='--', color='red')
+    
+    wealth_ax.set_ylim(top=y_max)
+    
+    terminal_wealth.plot.hist(ax=hist_ax, bins=50, ec='w', fc='indianred', orientation='horizontal')
+    
+    hist_ax.axhline(y=start, ls=':', color='black')
+    
+    hist_ax.axhline(y=tw_mean, ls=':', color='blue')
+    
+    hist_ax.axhline(y=tw_median, ls=':', color='purple')
+    
+    hist_ax.annotate(f'Mean: ${int(tw_mean)}', xy=(0.7, 0.9), xycoords='axes fraction', fontsize=24)
+    
+    hist_ax.annotate(f'Median: ${int(tw_median)}', xy=(0.7, 0.85), xycoords='axes fraction', fontsize=24)
+    
+    if (floor > 0.01):
+        
+        hist_ax.axhline(y=start * floor, ls='--', color='red', linewidth=3)
+        
+        hist_ax.annotate(f'Violations: {n_failures} ({p_fail * 100:2.2f}%)\nE(shortfall)=${e_shortfall:2.2f}', xy=(0.7, 0.7), xycoords='axes fraction', fontsize=24)
