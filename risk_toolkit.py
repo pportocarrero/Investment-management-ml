@@ -24,11 +24,9 @@ def drawdown(return_series: pd.Series):
         'Drawdown': drawdowns
     })
 
-
 def compound(r):
 
     return np.expm1(np.log1p(r).sum())
-
 
 def get_ffme_returns():
     '''
@@ -48,7 +46,6 @@ def get_ffme_returns():
 
     return returns
 
-
 def get_hf_returns():
     '''
     Loads and format EDHEC Hedge Fund Index Returns
@@ -62,7 +59,6 @@ def get_hf_returns():
     hfi.index = hfi.index.to_period('M')
 
     return hfi
-
 
 def get_ind_returns():
 
@@ -78,7 +74,6 @@ def get_ind_returns():
 
     return ind
 
-
 def get_ind_size():
 
     '''
@@ -92,7 +87,6 @@ def get_ind_size():
 
     return ind
 
-
 def get_ind_nfirms():
 
     '''
@@ -105,7 +99,6 @@ def get_ind_nfirms():
     ind.columns = ind.columns.str.strip()
 
     return ind
-
 
 def get_total_market_index_returns():
 
@@ -145,7 +138,6 @@ def annualized_returns(r, periods_per_year):
 
     return compounded_growth ** (periods_per_year / n_periods) - 1
 
-
 def annualized_volatility(r, periods_per_year):
 
     '''
@@ -156,7 +148,6 @@ def annualized_volatility(r, periods_per_year):
     '''
 
     return r.std() * (periods_per_year ** 0.5)
-
 
 def sharpe_ratio(r, risk_free_rate, periods_per_year):
 
@@ -178,7 +169,6 @@ def sharpe_ratio(r, risk_free_rate, periods_per_year):
 
     return annual_excess_return / annual_volatility
 
-
 def skewness(r):
     '''
     Alternative to scipy.stats.skew()
@@ -198,7 +188,6 @@ def skewness(r):
 
     return exp / sigma_r ** 3
 
-
 def kurtosis(r):
     '''
 
@@ -216,7 +205,6 @@ def kurtosis(r):
 
     return exp / sigma_r ** 4
 
-
 def is_normal(r, level=0.01):
     '''
     Applies the Jarque-Bera test to determine if a Series is normal or not.
@@ -229,7 +217,6 @@ def is_normal(r, level=0.01):
     statistic, p_value = scipy.stats.jarque_bera(r)
 
     return p_value > level
-
 
 def semi_deviation(r):
     '''
@@ -246,7 +233,6 @@ def semi_deviation(r):
     n_negative = (excess < 0).sum()  # number of returns under the mean
 
     return (excess_negative_square.sum() / n_negative)**0.5  # semideviation
-
 
 def historic_var(r, level=5):
     '''
@@ -268,7 +254,6 @@ def historic_var(r, level=5):
 
     else:
         raise TypeError('Expected r to be a Series or DataFrame')
-
 
 def historic_cvar(r, level=5):
     '''
@@ -292,7 +277,6 @@ def historic_cvar(r, level=5):
 
         raise TypeError("Expected r to be a Series or DataFrame")
 
-
 def gaussian_var(r, level=5, modified=False):
     '''
     Calculates the parametric (Gaussian) VaR of a Series or df.
@@ -315,16 +299,13 @@ def gaussian_var(r, level=5, modified=False):
 
     return -(r.mean() + z * r.std(ddof=0))
 
-
 def portfolio_return(weights, returns):
 
     return weights.T @ returns
 
-
 def portfolio_vol(weights, cov_matrix):
 
     return (weights.T @ cov_matrix @ weights) ** 0.5
-
 
 def efficient_frontier_2_asset(n_points, expected_return, cov_matrix, style='.-'):
 
@@ -352,7 +333,6 @@ def efficient_frontier_2_asset(n_points, expected_return, cov_matrix, style='.-'
     })
 
     return efficient_frontier_df.plot.line(x='Volatility', y='Returns', style=style)
-
 
 def minimize_vol(target_return, expected_return, cov_matrix):
 
@@ -382,7 +362,6 @@ def minimize_vol(target_return, expected_return, cov_matrix):
     )
 
     return weights.x
-
 
 def max_sharpe_ratio(risk_free_rate, expected_return, cov_matrix):
 
@@ -448,7 +427,6 @@ def optimal_weights(n_points, expected_return, cov_matrix):
     weights = [minimize_vol(target_return, expected_return, cov_matrix) for target_return in target_returns]
 
     return weights
-
 
 def gmv(cov_matrix):
 
@@ -530,7 +508,6 @@ def efficient_frontier_multi_asset(n_points, expected_return, cov_matrix, show_c
         ax.plot(cml_x, cml_y, color='red', marker='o', linestyle='dashed', markersize=12, linewidth=2)
 
     return ax
-
 
 def run_cppi(risky_r, safe_r=None, m=3, start=1000, floor=0.8, risk_free_rate=0.03, drawdown=None):
 
@@ -657,7 +634,6 @@ def summary_stats(r, risk_free_rate=0.03):
 
     return df
 
-
 def gbm(n_years=10, n_scenarios=1000, mu=0.07, sigma=0.15, steps_per_year=12, s_0=100.0, prices=True):
 
     '''
@@ -772,3 +748,42 @@ def show_cppi(n_scenarios=50, mu=0.07, sigma=0.15, m=3, floor=0, risk_free_rate=
         hist_ax.axhline(y=start * floor, ls='--', color='red', linewidth=3)
         
         hist_ax.annotate(f'Violations: {n_failures} ({p_fail * 100:2.2f}%)\nE(shortfall)=${e_shortfall:2.2f}', xy=(0.7, 0.7), xycoords='axes fraction', fontsize=24)
+
+
+def discount(time, interest_rate, price=1):
+
+    '''
+    Compute the price of a pure discount bond that pays "p" dollars at time t, given interest rate r
+    :param t: time in years
+    :param r: interest rate in annual terms
+    :return: present value
+    '''
+
+    return price / (1 + interest_rate) ** time
+
+def present_value(liabilities, interest_rate):
+
+    '''
+    Computes the PV of a sequence of liabilities
+    :param liabilities: index by the time, and the values are the amounts of each liability
+    :param r: interest rate in annual terms
+    :return: PV of the sequence
+    '''
+
+    dates = liabilities.index
+
+    discounts = discount(dates, interest_rate)
+
+    return (discounts * liabilities).sum()
+
+def funding_ratio(assets, liabilities, interest_rate):
+
+    '''
+    Computes the funding ratio.
+    :param assets:
+    :param liabilitites:
+    :param interest_rate:
+    :return:
+    '''
+
+    return assets / present_value(liabilities, interest_rate)
