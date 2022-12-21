@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import scipy.stats
+import math
 from scipy.stats import norm
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
@@ -788,8 +789,75 @@ def funding_ratio(assets, liabilities, interest_rate):
 
     return assets / present_value(liabilities, interest_rate)
 
-def show_funding_ratio(assets, interest_rate):
+def short_term_rate_to_annual(r):
     
-    fr = funding_ratio(assets, liabilities, interest_rate)
+    '''
+    Converts a short term interest rate (instantaneous) to an annual interest rate.
+    '''
     
-    print(f'{fr*100:.2f}')
+    return np.expm1(r)
+
+def annual_to_inst_rate(r):
+    
+    '''
+    Converts an annual interest rate to an instantaneous interest rate
+    '''
+    
+    return np.log1p(r)
+
+def cir_model(n_years=10, n_scenarios=1, a=0.05, b=0.03, sigma=0.05, steps_year=12, r_0=None):
+    
+    '''
+    Generates random interest rate evolution over time for the Cox Ingersoll Ross Model (CIR).
+    b and r_0 are assumed to be annualized rates and the returned values are annualized rates.
+    '''
+    
+    if r_0 is None: r_0 = b
+    
+    r_0 = annual_to_inst_rate(r_0)
+    
+    dt = 1 / steps_year
+    
+    num_steps = int(n_years * steps_year) + 1
+    
+    shock = np.random.normal(0, scale = np.sqrt(dt), size=(num_steps, n_scenarios))
+    
+    rates = np.empty_like(shock)
+    
+    rates[0] = r_0
+    
+    # For price generation
+    
+    h = math.sqrt(a ** 2 + 2 * sigma ** 2)
+    
+    prices = np.empty_like(shock)
+    
+    def price(ttm, r):
+        
+        _A = ((a * h * math.exp((h+a) * ttm / 2)) / (2 * h + (h + a) * (math.exp(h * ttm) - 1))) ** (2 * a * b / sigma ** 2)
+        
+        _B = (2 * (math.exp(h * ttm) - 1)) / (2 * h + (h + a) * (math.exp(h * ttm) - 1))
+        
+        _P = _A * np.exp(-_B * r)
+        
+        return _P
+    
+    prices[0] = price(n_years, r_0)
+    
+    for step in range(1, num_steps):
+        
+        r_t = rates[step - 1]
+        
+        d_r_t = a * (b - r_t) * dt + sigma * np.sqrt(r_t) * shock[step]
+        
+        rates[step] = abs(r_t + d_r_t)
+        
+        # Generating prices at time t
+        
+        prices[step] = price(n_years - step * dt, rates[step])
+        
+    rates = pd.DataFrame(data=short_term_rate_to_annual(rates), index=range(num_steps))
+    
+    prices = pd.DataFrame(data=prices, index=range(num_steps))
+    
+    return rates, prices
