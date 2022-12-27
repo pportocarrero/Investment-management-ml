@@ -818,23 +818,25 @@ def cir_model(n_years=10, n_scenarios=1, a=0.05, b=0.03, sigma=0.05, steps_year=
     
     dt = 1 / steps_year
     
-    num_steps = int(n_years * steps_year) + 1
+    num_steps = int(n_years * steps_year) + 1 # because n_years might be a float
     
-    shock = np.random.normal(0, scale = np.sqrt(dt), size=(num_steps, n_scenarios))
+    shock = np.random.normal(0, scale=np.sqrt(dt), size=(num_steps, n_scenarios))
     
     rates = np.empty_like(shock)
     
     rates[0] = r_0
-    
-    # For price generation
+
+    ## For Price Generation
     
     h = math.sqrt(a ** 2 + 2 * sigma ** 2)
     
     prices = np.empty_like(shock)
     
+    ####
+
     def price(ttm, r):
         
-        _A = ((a * h * math.exp((h+a) * ttm / 2)) / (2 * h + (h + a) * (math.exp(h * ttm) - 1))) ** (2 * a * b / sigma ** 2)
+        _A = ((2 * h * math.exp((h + a) * ttm / 2)) / (2 * h + (h + a) * (math.exp(h * ttm) - 1))) ** (2 * a * b / sigma ** 2)
         
         _B = (2 * (math.exp(h * ttm) - 1)) / (2 * h + (h + a) * (math.exp(h * ttm) - 1))
         
@@ -844,6 +846,8 @@ def cir_model(n_years=10, n_scenarios=1, a=0.05, b=0.03, sigma=0.05, steps_year=
     
     prices[0] = price(n_years, r_0)
     
+    ####
+    
     for step in range(1, num_steps):
         
         r_t = rates[step - 1]
@@ -851,12 +855,12 @@ def cir_model(n_years=10, n_scenarios=1, a=0.05, b=0.03, sigma=0.05, steps_year=
         d_r_t = a * (b - r_t) * dt + sigma * np.sqrt(r_t) * shock[step]
         
         rates[step] = abs(r_t + d_r_t)
-        
-        # Generating prices at time t
-        
+
         prices[step] = price(n_years - step * dt, rates[step])
-        
+
     rates = pd.DataFrame(data=short_term_rate_to_annual(rates), index=range(num_steps))
+    
+    ### for prices
     
     prices = pd.DataFrame(data=prices, index=range(num_steps))
     
