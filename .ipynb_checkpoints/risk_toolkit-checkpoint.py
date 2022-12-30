@@ -787,7 +787,7 @@ def funding_ratio(assets, liabilities, interest_rate):
     :return:
     '''
 
-    return assets / present_value(liabilities, interest_rate)
+    return present_value(assets, interest_rate) / present_value(liabilities, interest_rate)
 
 def short_term_rate_to_annual(r):
     
@@ -865,3 +865,57 @@ def cir_model(n_years=10, n_scenarios=1, a=0.05, b=0.03, sigma=0.05, steps_year=
     prices = pd.DataFrame(data=prices, index=range(num_steps))
     
     return rates, prices
+
+def bond_cf(maturity, principal=100, coupon=0.03, coupons_year=12):
+    
+    '''
+    Returns a series of cash flows from a bond, indexed by a coupon
+    '''
+    
+    n_coupons = round(maturity * coupons_year)
+    
+    amortization = principal * coupon / coupons_year
+    
+    coupon_times = np.arange(1, n_coupons + 1)
+    
+    cash_flows = pd.Series(data=amortization, index=coupon_times)
+    
+    cash_flows.iloc[-1] += principal
+    
+    return cash_flows
+
+def bond_price(maturity, principal=100, coupon=0.03, coupons_year=12, discount_rate=0.03):
+    
+    '''
+    Returns the bond price based on maturity, principal, coupon rate, coupons per year and the current discount rate (it may be the yield of the bond.
+    '''
+    
+    cash_flows = bond_cf(maturity, principal, coupon, coupons_year)
+    
+    return present_value(cash_flows, discount_rate / coupons_year)
+
+def macaulay_duration(cash_flows, discount_rate):
+    
+    '''
+    Returns the Macaulay Duration for a given cash flow.
+    '''
+    
+    discounted_flows = discount(cash_flows.index, discount_rate) * cash_flows
+    
+    weights = discounted_flows / discounted_flows.sum()
+    
+    return np.average(cash_flows.index, weights=weights)
+
+def match_durations(cf_target, cf_long_bond, cf_short_bond, discount_rate):
+    
+    '''
+    Returns the weight W of the short bond cash flows that, along with (1-W) in cf_long will have an effective duration that matches cf_target
+    '''
+    
+    d_t = macaulay_duration(cf_target, discount_rate)
+    
+    d_s = macaulay_duration(cf_short_bond, discount_rate)
+    
+    d_l = macaulay_duration(cf_long_bond, discount_rate)
+    
+    return (d_l - d_t) / (d_l - d_s)
